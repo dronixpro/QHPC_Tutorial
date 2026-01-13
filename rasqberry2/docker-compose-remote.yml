@@ -1,0 +1,47 @@
+# Docker Compose for remote slurmd on rasqberry2
+#
+# This runs a single compute node that connects to the main cluster on rasqberry.
+# Uses host networking so MPI can communicate directly between Pis.
+#
+# Architecture:
+#   rasqberry (192.168.4.160):  main cluster with c1 (4 CPUs, qpu)
+#   rasqberry2 (192.168.4.161): remote node c2 (4 CPUs, qpu)
+#
+# Prerequisites:
+#   1. Main cluster running on rasqberry
+#   2. NFS: /shared mounted from rasqberry
+#   3. Munge key copied from rasqberry
+#   4. slurm.conf updated with c2 NodeAddr
+#
+# Setup:
+#   1. Copy configs from rasqberry:
+#      scp rasqberry:/var/lib/docker/volumes/slurm-docker-cluster_etc_munge/_data/munge.key ./
+#      scp rasqberry:/home/rasqberry/.../slurm-docker-cluster/slurm.conf ./slurm-remote.conf
+#      # Edit slurm-remote.conf to add c2 node definition
+#
+#   2. Start the remote node:
+#      docker-compose -f docker-compose-remote.yml up -d
+
+services:
+  c2:
+    image: slurm-docker-cluster:25.05.3-dev
+    command: ["slurmd", "-N", "c2"]
+    hostname: c2
+    container_name: c2
+    network_mode: host
+    environment:
+      - OMPI_MCA_btl_tcp_if_include=wlan0
+      - OMPI_MCA_oob_tcp_if_include=wlan0
+    volumes:
+      - ./munge.key:/etc/munge/munge.key:ro
+      - ./slurm-remote.conf:/etc/slurm/slurm.conf:ro
+      - ./cgroup.conf:/etc/slurm/cgroup.conf:ro
+      - ./gres-remote.conf:/etc/slurm/gres.conf:ro
+      - ./qrmi_config.json:/etc/slurm/qrmi_config.json:ro
+      - ./plugstack.conf:/etc/slurm/plugstack.conf:ro
+      - /home/rasqberry/QCSC/hpc-course-demos/source/slurm-docker-cluster/shared:/shared
+      - var_log_slurmd:/var/log/slurm
+    restart: unless-stopped
+
+volumes:
+  var_log_slurmd:

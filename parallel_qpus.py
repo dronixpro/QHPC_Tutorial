@@ -71,5 +71,3 @@ if __name__ == "__main__":
         fidelity = (np.sum(np.sqrt(counts_0 * counts_1)) / np.sum(counts_0)) ** 2
 
         print("Circuit Fidelity:", fidelity)
-
-
