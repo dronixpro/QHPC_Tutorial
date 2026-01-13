@@ -29,7 +29,7 @@ sudo /home/rasqberry/RasQberry-Two/venv/RQB2/bin/python3 slurmled.py --container
 SSH into rasqberry2 and run:
 
 ```bash
-python3 ~/slurmled_nodes.py -v -i 1
+python3 ~/slurmled_nodes.py -i 1
 ```
 
 The rasqberry2 monitors Slurm node states via SSH to rasqberry and lights up individual LEDs for each container:

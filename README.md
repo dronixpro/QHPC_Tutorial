@@ -1,12 +1,97 @@
 # QHPC Tutorial
-This repo contains materials used as a part of IEEE Quantum Week 2025 Tutorial 02 : Exploring the Challenges of Integrating HPC and Quantum Computing. It is a short showcase of using the QRMI to run a heterogenous workflow with 2 tasks being run on different cores via MPI and sending off a request to 2 quantum computers. This is essentially to also spoof the action of the SLURM SPANK Plugin.
+## System Overview
 
-To run this script you will need `Python`, `Rust`, `MPI`, the `QRMI` library (see below), an IBM Cloud accout with associated API Key and cloud instance CRN. Recommended installations:
-  * `Python` : `https://www.anaconda.com/docs/getting-started/miniconda/install`
-  * `Rust` : `https://www.rust-lang.org/tools/install`
-  * `Open MPI` : `https://docs.open-mpi.org/en/v5.0.x/installing-open-mpi/quickstart.html`
-  * `QRMI` : `https://github.com/qiskit-community/qrmi/blob/main/INSTALL.md` + you will need to `pip install mpi4py` as well.
+This tutorial assumes you have four classical nodes and two quantum nodes added to your slurm-docker-cluster set up in this [tutorial](https://github.ibm.com/kmcmill/hpc-course-demos/tree/kpm).
 
-The `run.sh` bash exports the `QRMI` variables, for more info check `https://github.com/qiskit-community/qrmi/blob/main/examples/qiskit_primitives/ibm/README.md`, then starts the `parallel_qpus.py` that loads these variables and runs the heterogenous workflow.
+Your set up should look something like this: 
 
-For more info on how to create and access API Keys and Instance CRNs, please visit `https://quantum.cloud.ibm.com/docs/en/migration-guides/classic-iqp-to-cloud-iqp`.
+| Container | Partition | Deployed On |
+|-----------|-----------|-------------|
+| c1        | classical | rasqberry   |
+| c2        | classical | rasqberry   |
+| q1        | quantum   | rasqberry   |
+| c3        | classical | rasqberry2  |
+| c4        | classical | rasqberry2  |
+| q2        | quantum   | rasqberry2  |
+
+---
+
+
+The RasQberry cluster is a hybrid classical-quantum HPC system built on Raspberry Pi 5 hardware, using Docker containers to run Slurm workload manager components. The system supports:
+
+- **Classical computing** via standard Slurm compute nodes
+- **Quantum computing** via QRMI (Quantum Resource Management Interface) integration
+- **MPI parallel jobs** via PMIx and OpenMPI
+
+### Final Architecture (After All Phases)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           RASPBERRY PI 5 CLUSTER                            │
+├─────────────────────────────────┬───────────────────────────────────────────┤
+│  rasqberry (Swarm Manager)      │  rasqberry2 (Swarm Worker)                │
+│  ┌─────────────────────────┐    │  ┌─────────────────────────┐              │
+│  │ mysql (MariaDB 10.11)   │    │  │ c3 (slurmd)             │              │
+│  │ - Slurm accounting DB   │    │  │ - Classical compute     │              │
+│  └─────────────────────────┘    │  │ - 1 CPUs, 1GB RAM       │              │
+│  ┌─────────────────────────┐    │  └─────────────────────────┘              │
+│  │ slurmdbd                │    │  ┌─────────────────────────┐              │
+│  │ - Database daemon       │    │  │ c4 (slurmd)             │              │
+│  │ - Job accounting        │    │  │ - Classical compute     │              │
+│  └─────────────────────────┘    │  │ - 1 CPUs, 1GB RAM       │              │
+│  ┌─────────────────────────┐    │  └─────────────────────────┘              │
+│  │ slurmctld               │    │  ┌─────────────────────────┐              │
+│  │ - Central controller    │    │  │ q2 (slurmd)             │              │
+│  │ - Job scheduling        │    │  │ - Quantum compute       │              │
+│  │ - Resource management   │    │  │ - QPU GRES resource     │              │
+│  └─────────────────────────┘    │  │ - QRMI integration      │              │
+│  ┌─────────────────────────┐    │  └─────────────────────────┘              │
+│  │ c1 (slurmd)             │    │                                           │
+│  │ - Classical compute     │    │                                           │
+│  │ - 4 CPUs, 1GB RAM       │    │                                           │
+│  └─────────────────────────┘    │                                           │
+│  ┌─────────────────────────┐    │                                           │
+│  │ c2 (slurmd)             │    │                                           │
+│  │ - Classical compute     │    │                                           │
+│  │ - 4 CPUs, 1GB RAM       │    │                                           │
+│  └─────────────────────────┘    │                                           │
+│  ┌─────────────────────────┐    │                                           │
+│  │ q1 (slurmd)             │    │                                           │
+│  │ - Quantum compute       │    │                                           │
+│  │ - QPU GRES resource     │    │                                           │
+│  │ - QRMI integration      │    │                                           │
+│  └─────────────────────────┘    │                                           │
+│  ┌─────────────────────────┐    │                                           │
+│  │ login                   │    │                                           │
+│  │ - User access point     │    │                                           │
+│  │ - Job submission        │    │                                           │
+│  └─────────────────────────┘    │                                           │
+├─────────────────────────────────┴───────────────────────────────────────────┤
+│                    Docker Swarm Overlay Network (slurm-net)                 │
+│                              10.0.1.0/24                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+## Submitting Simultaneous Jobs via CLI
+```shell
+sbatch daxpy.sh & sbatch parallel_qpus.sh
+watch squeue
+```
+
+## Submitting Simultaneous Jobs via Bash Scripting
+
+To really visualize the slurm queue distributing resources and collecting results run the following script and watch yout slurm queue process various quantum and classical workloads
+
+```bash
+#!/bin/bash
+sbatch --export=ALL,NP=1 /shared/QHPC_Tutorial/parallel_qpus.sh
+sbatch --nodes=2 /shared/QHPC_Tutorial/daxpy.sh
+sbatch --nodes=4 /shared/QHPC_Tutorial/daxpy.sh
+sbatch --export=ALL,NP=2 /shared/QHPC_Tutorial/parallel_qpus.sh
+sbatch --nodes=1 /shared/QHPC_Tutorial/daxpy.sh
+sbatch --nodes=2 /shared/QHPC_Tutorial/daxpy.sh
+sbatch --export=ALL,NP=1 /shared/QHPC_Tutorial/parallel_qpus.sh
+
+echo "All jobs submitted"
+```
+

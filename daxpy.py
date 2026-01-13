@@ -36,3 +36,9 @@ stop = time.time()
 if rank == 0:
     print(y)
     print(f"Total Time with {size} ranks: {stop-start}")
+    expected = 1 + 50000 * np.arange(N, dtype='d')
+    if np.allclose(y, expected):
+        print("✓ Verification PASSED")
+    else:
+        diff = np.abs(y - expected)
+        print(f"✗ Verification FAILED - max error: {diff.max()}")
