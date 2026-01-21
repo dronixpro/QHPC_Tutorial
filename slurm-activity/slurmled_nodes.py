@@ -536,7 +536,7 @@ class SlurmNodeMonitor:
             # SSH to rasqberry and run sinfo to get node states
             # Use shell=True to preserve quote handling exactly as command line
             ssh_target = f"{self.config.slurm_user}@{self.config.slurm_host}"
-            cmd = f'ssh -o BatchMode=yes -o ConnectTimeout=5 {ssh_target} "docker exec {self.config.docker_container} sinfo -N -h -o \\"%N %T\\""'
+            cmd = f'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {ssh_target} "docker exec {self.config.docker_container} sinfo -N -h -o \\"%N %T\\""'
             result = subprocess.run(
                 cmd,
                 shell=True,
@@ -583,7 +583,7 @@ class SlurmNodeMonitor:
         try:
             ssh_target = f"{self.config.slurm_user}@{self.config.slurm_host}"
             # Get running jobs with their partitions
-            cmd = f'ssh -o BatchMode=yes -o ConnectTimeout=5 {ssh_target} "docker exec {self.config.docker_container} squeue -h -t RUNNING -o \\"%P\\""'
+            cmd = f'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {ssh_target} "docker exec {self.config.docker_container} squeue -h -t RUNNING -o \\"%P\\""'
             result = subprocess.run(
                 cmd,
                 shell=True,

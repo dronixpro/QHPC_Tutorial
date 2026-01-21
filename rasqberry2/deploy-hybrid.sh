@@ -42,16 +42,41 @@ prepare_configs() {
 
     mkdir -p "$SCRIPT_DIR/etc_slurm"
 
-    # Copy config files
+    # Copy config files - use existing files if CLUSTER_DIR doesn't exist
     cp "$SCRIPT_DIR/slurm-hybrid.conf" "$SCRIPT_DIR/etc_slurm/slurm.conf"
     cp "$SCRIPT_DIR/gres-hybrid.conf" "$SCRIPT_DIR/etc_slurm/gres.conf"
-    cp "$CLUSTER_DIR/cgroup.conf" "$SCRIPT_DIR/etc_slurm/"
-    cp "$CLUSTER_DIR/qrmi_config.json" "$SCRIPT_DIR/etc_slurm/"
-    cp "$CLUSTER_DIR/plugstack.conf" "$SCRIPT_DIR/etc_slurm/"
+
+    # Copy additional config files if they exist in CLUSTER_DIR, otherwise keep existing ones
+    if [[ -f "$CLUSTER_DIR/cgroup.conf" ]]; then
+        cp "$CLUSTER_DIR/cgroup.conf" "$SCRIPT_DIR/etc_slurm/"
+    elif [[ ! -f "$SCRIPT_DIR/etc_slurm/cgroup.conf" ]]; then
+        log_error "cgroup.conf not found in $CLUSTER_DIR or $SCRIPT_DIR/etc_slurm"
+        exit 1
+    fi
+
+    if [[ -f "$CLUSTER_DIR/qrmi_config.json" ]]; then
+        cp "$CLUSTER_DIR/qrmi_config.json" "$SCRIPT_DIR/etc_slurm/"
+    elif [[ ! -f "$SCRIPT_DIR/etc_slurm/qrmi_config.json" ]]; then
+        log_error "qrmi_config.json not found in $CLUSTER_DIR or $SCRIPT_DIR/etc_slurm"
+        exit 1
+    fi
+
+    if [[ -f "$CLUSTER_DIR/plugstack.conf" ]]; then
+        cp "$CLUSTER_DIR/plugstack.conf" "$SCRIPT_DIR/etc_slurm/"
+    elif [[ ! -f "$SCRIPT_DIR/etc_slurm/plugstack.conf" ]]; then
+        log_error "plugstack.conf not found in $CLUSTER_DIR or $SCRIPT_DIR/etc_slurm"
+        exit 1
+    fi
 
     # slurmdbd.conf requires special handling - may be owned by uid 990 from previous run
-    sudo rm -f "$SCRIPT_DIR/etc_slurm/slurmdbd.conf"
-    cp "$CLUSTER_DIR/slurmdbd.conf" "$SCRIPT_DIR/etc_slurm/"
+    # Check if we need to restore it from CLUSTER_DIR or if it already exists
+    if [[ -f "$CLUSTER_DIR/slurmdbd.conf" ]]; then
+        sudo rm -f "$SCRIPT_DIR/etc_slurm/slurmdbd.conf"
+        cp "$CLUSTER_DIR/slurmdbd.conf" "$SCRIPT_DIR/etc_slurm/"
+    elif [[ ! -f "$SCRIPT_DIR/etc_slurm/slurmdbd.conf" ]]; then
+        log_error "slurmdbd.conf not found in $CLUSTER_DIR or $SCRIPT_DIR/etc_slurm"
+        exit 1
+    fi
 
     # Set proper ownership for slurmdbd.conf (uid 990 = slurm user in container)
     sudo chown 990:990 "$SCRIPT_DIR/etc_slurm/slurmdbd.conf"
